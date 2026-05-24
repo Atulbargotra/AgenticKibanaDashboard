@@ -1,6 +1,5 @@
 import { env } from "../config/env.js";
 import { DashboardPlan, PatternFinding } from "../types/domain.js";
-import { request } from "undici";
 import { z } from "zod";
 
 export async function planDashboard(finding: PatternFinding): Promise<DashboardPlan> {
@@ -124,9 +123,13 @@ Rules:
     null,
     2
   );
+  if (env.DEBUG_LLM_IO) {
+    console.log("[llm][request][system]", systemPrompt);
+    console.log("[llm][request][user]", userPrompt);
+  }
 
   try {
-    const response = await request(`${env.OPENROUTER_BASE_URL}/chat/completions`, {
+    const response = await fetch(`${env.OPENROUTER_BASE_URL}/chat/completions`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -224,12 +227,16 @@ Rules:
       })
     });
 
-    const body = (await response.body.json()) as ChatCompletionResponse & { error?: unknown };
-    if (response.statusCode >= 400) {
-      throw new Error(`OpenRouter planner failed: ${response.statusCode} ${JSON.stringify(body.error ?? body)}`);
+    const body = (await response.json()) as ChatCompletionResponse & { error?: unknown };
+    if (!response.ok) {
+      throw new Error(`OpenRouter planner failed: ${response.status} ${JSON.stringify(body.error ?? body)}`);
     }
 
     const content = body.choices?.[0]?.message?.content;
+    if (env.DEBUG_LLM_IO) {
+      console.log("[llm][response][raw]", JSON.stringify(body, null, 2));
+      console.log("[llm][response][content]", content ?? "");
+    }
     if (!content) {
       throw new Error("OpenRouter planner returned no message content");
     }

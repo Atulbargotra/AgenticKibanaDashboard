@@ -23,8 +23,6 @@ const envSchema = z.object({
   KIBANA_SPACE: z.string().default("default"),
   AGENT_DRY_RUN: booleanFromEnv.default(true),
   AGENT_REQUIRE_REVIEW: booleanFromEnv.default(false),
-  LOCAL_LOG_FALLBACK_ENABLED: booleanFromEnv.default(false),
-  LOCAL_LOG_PATH: z.string().optional(),
   SERVICE_NAME: z.string().default("checkout-service"),
   DEPLOYMENT_ENVIRONMENT: z.string().default("local"),
   LOGS_INDEX_PATTERN: z.string().default("logs-springboot-local*"),
@@ -39,6 +37,7 @@ const envSchema = z.object({
   OPENROUTER_BASE_URL: z.string().url().default("https://openrouter.ai/api/v1"),
   OPENROUTER_MODEL: z.string().default("openrouter/free"),
   ALLOW_DETERMINISTIC_FALLBACK: booleanFromEnv.default(false),
+  DEBUG_LLM_IO: booleanFromEnv.default(false),
   ANTHROPIC_MODEL: z.string().default("openrouter/free"),
 });
 

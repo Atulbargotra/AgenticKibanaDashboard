@@ -1,4 +1,3 @@
-import { request } from "undici";
 import { env } from "../config/env.js";
 
 type KibanaMethod = "GET" | "POST" | "PUT" | "DELETE";
@@ -11,7 +10,7 @@ function spacePath(path: string): string {
 }
 
 export async function kibanaRequest<T>(path: string, init: { method: KibanaMethod; body?: unknown }): Promise<T> {
-  const response = await request(`${env.KIBANA_URL}${spacePath(path)}`, {
+  const response = await fetch(`${env.KIBANA_URL}${spacePath(path)}`, {
     method: init.method,
     headers: {
       "content-type": "application/json",
@@ -20,9 +19,9 @@ export async function kibanaRequest<T>(path: string, init: { method: KibanaMetho
     body: init.body === undefined ? undefined : JSON.stringify(init.body)
   });
 
-  if (response.statusCode >= 400) {
-    throw new Error(`Kibana API failed: ${response.statusCode} ${await response.body.text()}`);
+  if (!response.ok) {
+    throw new Error(`Kibana API failed: ${response.status} ${await response.text()}`);
   }
 
-  return response.body.json() as Promise<T>;
+  return (await response.json()) as T;
 }

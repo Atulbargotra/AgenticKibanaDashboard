@@ -43,7 +43,6 @@ services:
       - "8889:8889"
     volumes:
       - ./infra/otel/collector.yaml:/etc/otelcol-contrib/config.yaml:ro
-      - ./springboot-app:/workspace/springboot-app:ro
 
 volumes:
   es-data:

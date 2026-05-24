@@ -2,8 +2,6 @@ import { env } from "../config/env.js";
 import { PatternFinding } from "../types/domain.js";
 import { elasticsearchSearch } from "./elasticsearch.js";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 
 type AggregationResponse = {
   hits?: {
@@ -27,7 +25,7 @@ type ParsedLogEvent = {
   serviceName?: string;
   environment?: string;
   statusCode?: number;
-  source: "elasticsearch" | "local_file_fallback";
+  source: "elasticsearch";
 };
 
 function fingerprint(parts: string[]): string {
@@ -39,7 +37,9 @@ function extractBody(hit: SearchHit): string {
 }
 
 function parseLogEvent(message: string, source: ParsedLogEvent["source"], timestamp?: string): ParsedLogEvent {
-  const exceptionClass = message.match(/exception\.class=([A-Za-z0-9_.$]+)/)?.[1];
+  const exceptionClass =
+    message.match(/exception\.class=([A-Za-z0-9_.$]+)/)?.[1] ??
+    message.match(/\b([A-Za-z0-9_$.]*(?:Exception|Error))\b/)?.[1];
   const serviceName = message.match(/\[([A-Za-z0-9_.-]+-service)\]/)?.[1] ?? env.SERVICE_NAME;
   const environment = message.match(/deployment\.environment=([A-Za-z0-9_.-]+)/)?.[1] ?? env.DEPLOYMENT_ENVIRONMENT;
   const statusCode = Number(message.match(/\s(status=)?(5\d\d)\s?/)?.[2]);
@@ -54,23 +54,6 @@ function parseLogEvent(message: string, source: ParsedLogEvent["source"], timest
   };
 }
 
-function loadLocalFallbackEvents(): ParsedLogEvent[] {
-  if (!env.LOCAL_LOG_FALLBACK_ENABLED || !env.LOCAL_LOG_PATH) {
-    return [];
-  }
-
-  try {
-    const raw = readFileSync(resolve(process.cwd(), env.LOCAL_LOG_PATH), "utf8");
-    return raw
-      .split("\n")
-      .slice(-2000)
-      .filter(Boolean)
-      .map((line) => parseLogEvent(line, "local_file_fallback"));
-  } catch {
-    return [];
-  }
-}
-
 export async function detectExceptionSpikes(): Promise<PatternFinding[]> {
   const result = await elasticsearchSearch<AggregationResponse>(env.LOGS_INDEX_PATTERN, {
     size: 500,
@@ -82,9 +65,13 @@ export async function detectExceptionSpikes(): Promise<PatternFinding[]> {
     sort: [{ "@timestamp": { order: "desc" } }]
   });
 
-  const esEvents =
+  const events =
     result.hits?.hits.map((hit) => parseLogEvent(extractBody(hit), "elasticsearch", hit._source?.["@timestamp"])) ?? [];
-  const events = [...esEvents, ...loadLocalFallbackEvents()];
+  if (events.length === 0) {
+    console.warn(
+      `[detector] no log events found in Elasticsearch index pattern '${env.LOGS_INDEX_PATTERN}' for last ${env.PATTERN_WINDOW_MINUTES} minutes`
+    );
+  }
 
   const exceptionGroups = new Map<string, ParsedLogEvent[]>();
   const http5xxEvents: ParsedLogEvent[] = [];
@@ -120,8 +107,8 @@ export async function detectExceptionSpikes(): Promise<PatternFinding[]> {
       severity: group.length >= env.ERROR_SPIKE_THRESHOLD * 3 ? "high" : "medium",
       confidence: 0.86,
       timeRangeMinutes: env.PATTERN_WINDOW_MINUTES,
-      source: group.some((event) => event.source === "elasticsearch") ? "elasticsearch" : "local_file_fallback",
-      matchingQuery: `Body: "*exception.class=${exceptionClass}*"`,
+      source: "elasticsearch",
+      matchingQuery: `Body: "*${exceptionClass}*"`,
       sampleEvents: sample,
       evidence: {
         exceptionClass,
@@ -146,7 +133,7 @@ export async function detectExceptionSpikes(): Promise<PatternFinding[]> {
       severity: http5xxEvents.length >= env.ERROR_SPIKE_THRESHOLD * 3 ? "high" : "medium",
       confidence: 0.74,
       timeRangeMinutes: env.PATTERN_WINDOW_MINUTES,
-      source: http5xxEvents.some((event) => event.source === "elasticsearch") ? "elasticsearch" : "local_file_fallback",
+      source: "elasticsearch",
       matchingQuery: "status:500 OR Body: \" 500 \"",
       sampleEvents: http5xxEvents.slice(0, 5).map((event) => ({ timestamp: event.timestamp, message: event.message })),
       evidence: {

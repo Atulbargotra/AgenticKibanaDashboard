@@ -46,7 +46,9 @@ class CheckoutController {
 
     if ("db-timeout".equals(mode)) {
       checkoutFailures.increment();
-      log.error("checkout failed due to database timeout endpoint=/checkout exception.class=JdbcSQLTimeoutException service.version=local-dev");
+      String message = "checkout failed due to database timeout endpoint=/checkout exception.class=JdbcSQLTimeoutException service.version=local-dev";
+      log.error(message);
+      emitOtelError("JdbcSQLTimeoutException", message);
       return ResponseEntity.internalServerError().body(Map.of(
           "status", "failed",
           "error", "JdbcSQLTimeoutException",
@@ -56,7 +58,9 @@ class CheckoutController {
 
     if ("random-error".equals(mode) && random.nextInt(3) == 0) {
       checkoutFailures.increment();
-      log.error("checkout failed due to payment dependency endpoint=/checkout exception.class=PaymentGatewayException service.version=local-dev");
+      String message = "checkout failed due to payment dependency endpoint=/checkout exception.class=PaymentGatewayException service.version=local-dev";
+      log.error(message);
+      emitOtelError("PaymentGatewayException", message);
       return ResponseEntity.internalServerError().body(Map.of(
           "status", "failed",
           "error", "PaymentGatewayException",
@@ -66,7 +70,9 @@ class CheckoutController {
 
     if ("downstream-service-timeout".equals(mode)) {
       checkoutFailures.increment();
-      log.error("checkout failed due to downstream timeout endpoint=/checkout exception.class=DownstreamServiceTimeoutException dependency=inventory-service service.version=local-dev");
+      String message = "checkout failed due to downstream timeout endpoint=/checkout exception.class=DownstreamServiceTimeoutException dependency=inventory-service service.version=local-dev";
+      log.error(message);
+      emitOtelError("DownstreamServiceTimeoutException", message);
       return ResponseEntity.internalServerError().body(Map.of(
           "status", "failed",
           "error", "DownstreamServiceTimeoutException",
@@ -76,6 +82,10 @@ class CheckoutController {
 
     log.info("checkout completed endpoint=/checkout mode={} latencyMs={} service.version=local-dev", mode, latencyMs);
     return ResponseEntity.ok(Map.of("status", "ok", "latencyMs", latencyMs));
+  }
+
+  private static void emitOtelError(String exceptionClass, String message) {
+    OtlpErrorLogEmitter.emit(exceptionClass, message);
   }
 
   @GetMapping("/load")
