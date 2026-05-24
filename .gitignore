@@ -1,0 +1,8 @@
+.env
+agent/.env
+node_modules/
+target/
+*.log
+app.out
+agent/.dashboard-registry.json
+opentelemetry-javaagent.jar

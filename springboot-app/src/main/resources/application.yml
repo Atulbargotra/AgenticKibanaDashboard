@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: checkout-service
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  tracing:
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: http://localhost:4318/v1/traces
+    metrics:
+      export:
+        url: http://localhost:4318/v1/metrics
+        step: 10s
+  opentelemetry:
+    resource-attributes:
+      service.name: checkout-service
+      service.version: local-dev
+      deployment.environment: local
+
+logging:
+  pattern:
+    level: "%5p trace_id=%X{traceId:-} span_id=%X{spanId:-}"
