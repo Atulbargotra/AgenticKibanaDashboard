@@ -28,18 +28,18 @@ type ParsedLogEvent = {
   source: "elasticsearch";
 };
 
-function fingerprint(parts: string[]): string {
+export function fingerprint(parts: string[]): string {
   return createHash("sha256")
     .update(parts.join("|"))
     .digest("hex")
     .slice(0, 16);
 }
 
-function extractBody(hit: SearchHit): string {
+export function extractBody(hit: SearchHit): string {
   return hit._source?.body ?? hit._source?.Body ?? hit._source?.message ?? "";
 }
 
-function parseLogEvent(
+export function parseLogEvent(
   message: string,
   source: ParsedLogEvent["source"],
   timestamp?: string,

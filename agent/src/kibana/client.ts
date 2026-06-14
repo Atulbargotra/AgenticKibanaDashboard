@@ -2,7 +2,7 @@ import { env } from "../config/env.js";
 
 type KibanaMethod = "GET" | "POST" | "PUT" | "DELETE";
 
-function spacePath(path: string): string {
+export function spacePath(path: string): string {
   if (env.KIBANA_SPACE === "default") {
     return path;
   }
