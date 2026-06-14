@@ -17,6 +17,8 @@ exporters:
     endpoints:
       - http://elasticsearch:9200
     logs_index: logs-springboot-local
+    mapping:
+      mode: ecs
 
 service:
   pipelines:

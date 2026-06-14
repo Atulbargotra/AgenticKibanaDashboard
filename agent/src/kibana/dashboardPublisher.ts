@@ -218,7 +218,7 @@ async function buildDashboardContent(
     const objectTitle = `[AI:${plan.stableKey}] ${panel.title}`;
     const id =
       panel.visualization === "table"
-        ? await upsertSearchObject(objectTitle, panel.query, panel.columns ?? ["@timestamp", "Body"], dataViewId)
+        ? await upsertSearchObject(objectTitle, panel.query, panel.columns ?? ["@timestamp", "message"], dataViewId)
         : await upsertVisualizationObject(
             objectTitle,
             panel.query,

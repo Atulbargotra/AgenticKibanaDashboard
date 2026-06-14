@@ -85,7 +85,50 @@ class CheckoutController {
   }
 
   private static void emitOtelError(String exceptionClass, String message) {
-    OtlpErrorLogEmitter.emit(exceptionClass, message);
+    try {
+      OtlpErrorLogEmitter.emit(exceptionClass, message);
+    } catch (NoClassDefFoundError | Exception e) {
+      // OtlpErrorLogEmitter may fail when the OTel Java agent is attached
+      // (classpath conflict). SLF4J log.error() is already forwarded to the
+      // collector by the agent's logback instrumentation, so this is safe to skip.
+    }
+  }
+
+  @GetMapping("/simulate-exception")
+  ResponseEntity<Map<String, Object>> simulateException(
+      @RequestParam String exceptionClass,
+      @RequestParam(defaultValue = "") String message,
+      @RequestParam(defaultValue = "/checkout") String endpoint,
+      @RequestParam(defaultValue = "") String dependency,
+      @RequestParam(defaultValue = "6") int count) {
+
+    if (exceptionClass == null || exceptionClass.isBlank()) {
+      return ResponseEntity.badRequest().body(Map.of(
+          "error", "exceptionClass query parameter is required"));
+    }
+
+    count = Math.max(1, Math.min(count, 100));
+
+    String effectiveMessage = message.isBlank()
+        ? String.format("simulated failure endpoint=%s exception.class=%s service.version=local-dev%s",
+            endpoint, exceptionClass,
+            dependency.isBlank() ? "" : " dependency=" + dependency)
+        : message;
+
+    for (int i = 0; i < count; i++) {
+      checkoutFailures.increment();
+      log.error(effectiveMessage);
+      emitOtelError(exceptionClass, effectiveMessage);
+    }
+
+    log.info("Simulated {} occurrences of {} via /simulate-exception", count, exceptionClass);
+
+    return ResponseEntity.internalServerError().body(Map.of(
+        "status", "simulated",
+        "exceptionClass", exceptionClass,
+        "emitted", count,
+        "message", effectiveMessage
+    ));
   }
 
   @GetMapping("/load")
