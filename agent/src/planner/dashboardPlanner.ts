@@ -236,7 +236,15 @@ Field names available in Elasticsearch (ECS mapping):
       })
     });
 
-    const body = (await response.json()) as ChatCompletionResponse & { error?: unknown };
+    const rawText = await response.text();
+    let body: ChatCompletionResponse & { error?: unknown };
+    try {
+      body = JSON.parse(rawText) as ChatCompletionResponse & { error?: unknown };
+    } catch {
+      throw new Error(
+        `OpenRouter returned non-JSON (${response.status}): ${rawText.slice(0, 300)}`,
+      );
+    }
     if (!response.ok) {
       throw new Error(`OpenRouter planner failed: ${response.status} ${JSON.stringify(body.error ?? body)}`);
     }
@@ -252,6 +260,10 @@ Field names available in Elasticsearch (ECS mapping):
 
     return dashboardPlanSchema.parse(extractJson(content));
   } catch (error) {
+    console.error(
+      `[planner] failed for finding ${finding.id}:`,
+      error instanceof Error ? error.message : error,
+    );
     return fallbackOrSkip(finding, summarizePlannerFailure(error));
   }
 }
