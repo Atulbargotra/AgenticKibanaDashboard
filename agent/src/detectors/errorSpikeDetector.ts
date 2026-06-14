@@ -1,7 +1,7 @@
 import { env } from "../config/env.js";
 import { PatternFinding } from "../types/domain.js";
 import { elasticsearchSearch } from "./elasticsearch.js";
-import { createHash } from "node:crypto";
+import { fingerprint, sampleEvents, spikeSeverity } from "../utils/findings.js";
 
 type AggregationResponse = {
   hits?: {
@@ -27,13 +27,6 @@ type ParsedLogEvent = {
   statusCode?: number;
   source: "elasticsearch";
 };
-
-export function fingerprint(parts: string[]): string {
-  return createHash("sha256")
-    .update(parts.join("|"))
-    .digest("hex")
-    .slice(0, 16);
-}
 
 export function extractBody(hit: SearchHit): string {
   return hit._source?.body ?? hit._source?.Body ?? hit._source?.message ?? "";
@@ -61,6 +54,16 @@ export function parseLogEvent(
     environment,
     statusCode: Number.isFinite(statusCode) ? statusCode : undefined,
     source,
+  };
+}
+
+function extractServiceInfo(events: ParsedLogEvent[]): {
+  serviceName: string;
+  environment: string;
+} {
+  return {
+    serviceName: events[0]?.serviceName ?? env.SERVICE_NAME,
+    environment: events[0]?.environment ?? env.DEPLOYMENT_ENVIRONMENT,
   };
 }
 
@@ -118,11 +121,7 @@ export async function detectExceptionSpikes(): Promise<PatternFinding[]> {
     if (group.length < env.ERROR_SPIKE_THRESHOLD) {
       continue;
     }
-    const sample = group
-      .slice(0, 5)
-      .map((event) => ({ timestamp: event.timestamp, message: event.message }));
-    const serviceName = group[0]?.serviceName ?? env.SERVICE_NAME;
-    const environment = group[0]?.environment ?? env.DEPLOYMENT_ENVIRONMENT;
+    const { serviceName, environment } = extractServiceInfo(group);
     const key = fingerprint([
       "exception_spike",
       serviceName,
@@ -136,13 +135,12 @@ export async function detectExceptionSpikes(): Promise<PatternFinding[]> {
       title: `Exception spike: ${exceptionClass}`,
       serviceName,
       environment,
-      severity:
-        group.length >= env.ERROR_SPIKE_THRESHOLD * 3 ? "high" : "medium",
+      severity: spikeSeverity(group.length),
       confidence: 0.86,
       timeRangeMinutes: env.PATTERN_WINDOW_MINUTES,
       source: "elasticsearch",
       matchingQuery: `message: "*${exceptionClass}*"`,
-      sampleEvents: sample,
+      sampleEvents: sampleEvents(group),
       evidence: {
         exceptionClass,
         count: group.length,
@@ -155,9 +153,7 @@ export async function detectExceptionSpikes(): Promise<PatternFinding[]> {
   }
 
   if (http5xxEvents.length >= env.ERROR_SPIKE_THRESHOLD) {
-    const serviceName = http5xxEvents[0]?.serviceName ?? env.SERVICE_NAME;
-    const environment =
-      http5xxEvents[0]?.environment ?? env.DEPLOYMENT_ENVIRONMENT;
+    const { serviceName, environment } = extractServiceInfo(http5xxEvents);
     const key = fingerprint(["http_5xx_spike", serviceName, environment]);
     findings.push({
       id: `http-5xx-spike:${serviceName}:${environment}`,
@@ -166,20 +162,12 @@ export async function detectExceptionSpikes(): Promise<PatternFinding[]> {
       title: "HTTP 5xx spike",
       serviceName,
       environment,
-      severity:
-        http5xxEvents.length >= env.ERROR_SPIKE_THRESHOLD * 3
-          ? "high"
-          : "medium",
+      severity: spikeSeverity(http5xxEvents.length),
       confidence: 0.74,
       timeRangeMinutes: env.PATTERN_WINDOW_MINUTES,
       source: "elasticsearch",
       matchingQuery: 'status:500 OR message: " 500 "',
-      sampleEvents: http5xxEvents
-        .slice(0, 5)
-        .map((event) => ({
-          timestamp: event.timestamp,
-          message: event.message,
-        })),
+      sampleEvents: sampleEvents(http5xxEvents),
       evidence: {
         count: http5xxEvents.length,
         threshold: env.ERROR_SPIKE_THRESHOLD,

@@ -1,10 +1,10 @@
 import { env } from "../config/env.js";
+import { fetchJson } from "../utils/httpClient.js";
 
 export async function elasticsearchSearch<T>(index: string, body: unknown): Promise<T> {
-  const response = await fetch(`${env.ELASTICSEARCH_URL}/${index}/_search`, {
+  return fetchJson<T>(`${env.ELASTICSEARCH_URL}/${index}/_search`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body)
+    body,
   });
 
   if (!response.ok) {

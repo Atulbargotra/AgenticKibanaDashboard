@@ -33,7 +33,7 @@ const dashboardPlanSchema = z.object({
         reviewRequired: z.boolean()
     })
 });
-function extractJson(text) {
+export function extractJson(text) {
     const trimmed = text.trim();
     if (trimmed.startsWith("{")) {
         return JSON.parse(trimmed);
@@ -49,7 +49,7 @@ function extractJson(text) {
     }
     throw new Error("Planner response did not contain JSON");
 }
-function summarizePlannerFailure(error) {
+export function summarizePlannerFailure(error) {
     if (error instanceof z.ZodError) {
         return error.issues.map((issue) => `${issue.path.join(".") || "plan"}: ${issue.message}`).join("; ");
     }
@@ -58,7 +58,7 @@ function summarizePlannerFailure(error) {
     }
     return String(error);
 }
-function conciseReason(reason) {
+export function conciseReason(reason) {
     const normalized = reason.replace(/\s+/g, " ").trim();
     if (normalized.includes("429")) {
         return "AI planner was rate limited by the upstream model provider";
@@ -86,6 +86,15 @@ Rules:
 - Include at least one recent-events table and one trend/count panel.
 - Use stableKey and dedupe.key equal to the finding fingerprint.
 - Never include secrets or credentials.
+
+Field names available in Elasticsearch (ECS mapping):
+- message: the log body text (use this for KQL text searches, NOT "Body")
+- service.name: the service name
+- log.level: the log level (e.g. ERROR, WARN, INFO)
+- @timestamp: the event timestamp
+- trace.id: the trace ID
+- span.id: the span ID
+- For table panels, use columns: ["@timestamp", "message"]
 `;
     const userPrompt = JSON.stringify({
         finding,
@@ -221,7 +230,7 @@ Rules:
         return fallbackOrSkip(finding, summarizePlannerFailure(error));
     }
 }
-function fallbackOrSkip(finding, reason) {
+export function fallbackOrSkip(finding, reason) {
     if (!env.ALLOW_DETERMINISTIC_FALLBACK) {
         return {
             shouldCreate: false,
@@ -276,16 +285,16 @@ function fallbackOrSkip(finding, reason) {
                 query: finding.matchingQuery,
                 visualization: "table",
                 dataView: "logs",
-                columns: ["@timestamp", "Body"],
+                columns: ["@timestamp", "message"],
                 layout: { w: 24, h: 12 }
             },
             {
                 title: "Related Checkout Logs",
                 purpose: "Show surrounding service logs for context near the spike.",
-                query: `Body: "*${finding.serviceName}*" OR Body: "*checkout*"`,
+                query: `message: "*${finding.serviceName}*" OR message: "*checkout*"`,
                 visualization: "table",
                 dataView: "logs",
-                columns: ["@timestamp", "Body"],
+                columns: ["@timestamp", "message"],
                 layout: { w: 48, h: 10 }
             }
         ],

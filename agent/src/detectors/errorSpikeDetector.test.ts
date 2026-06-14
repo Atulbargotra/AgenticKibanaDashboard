@@ -16,8 +16,8 @@ vi.mock("./elasticsearch.js", () => ({
   elasticsearchSearch: vi.fn(),
 }));
 
+import { fingerprint } from "../utils/findings.js";
 import {
-  fingerprint,
   extractBody,
   parseLogEvent,
   detectExceptionSpikes,

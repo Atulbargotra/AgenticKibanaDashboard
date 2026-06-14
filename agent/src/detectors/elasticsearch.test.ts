@@ -62,7 +62,7 @@ describe("elasticsearchSearch", () => {
     );
 
     await expect(elasticsearchSearch("idx", {})).rejects.toThrow(
-      "Elasticsearch search failed: 400 Bad Request body"
+      "HTTP POST http://localhost:9200/idx/_search failed: 400 Bad Request body"
     );
 
     vi.unstubAllGlobals();

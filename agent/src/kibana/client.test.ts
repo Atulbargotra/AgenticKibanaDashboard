@@ -47,7 +47,7 @@ describe("kibanaRequest", () => {
 
     await expect(
       kibanaRequest("/api/test", { method: "GET" })
-    ).rejects.toThrow("Kibana API failed: 404 Not Found");
+    ).rejects.toThrow("HTTP GET http://localhost:5601/api/test failed: 404 Not Found");
 
     vi.unstubAllGlobals();
   });

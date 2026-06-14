@@ -1,9 +1,11 @@
 import { env } from "../config/env.js";
 import { kibanaRequest } from "./client.js";
+import { getSavedObjectByExactTitle, upsertSavedObject, buildSearchSource, buildDataViewReference, } from "./savedObjects.js";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 const registryPath = resolve(process.cwd(), ".dashboard-registry.json");
-function readRegistry() {
+const INDEX_REF_NAME = "kibanaSavedObjectMeta.searchSourceJSON.index";
+export function readRegistry() {
     if (!existsSync(registryPath)) {
         return {};
     }
@@ -14,17 +16,11 @@ function readRegistry() {
         return {};
     }
 }
-function writeRegistry(registry) {
+export function writeRegistry(registry) {
     writeFileSync(registryPath, JSON.stringify(registry, null, 2));
 }
 export async function dashboardExists(title) {
-    const result = await kibanaRequest(`/api/saved_objects/_find?type=dashboard&search_fields=title&search=${encodeURIComponent(title)}`, { method: "GET" });
-    return result.saved_objects.some((obj) => obj.attributes?.title === title);
-}
-async function getSavedObjectByExactTitle(type, title) {
-    const result = await kibanaRequest(`/api/saved_objects/_find?type=${encodeURIComponent(type)}&search_fields=title&search=${encodeURIComponent(title)}&per_page=100`, { method: "GET" });
-    const exact = result.saved_objects.find((obj) => obj.attributes?.title === title);
-    return exact ? { id: exact.id } : null;
+    return (await getSavedObjectByExactTitle("dashboard", title)) !== null;
 }
 async function resolveDataViewId(dataView) {
     const result = await kibanaRequest("/api/data_views", {
@@ -49,24 +45,15 @@ async function upsertSearchObject(title, query, columns, dataViewId) {
             columns,
             sort: [["@timestamp", "desc"]],
             kibanaSavedObjectMeta: {
-                searchSourceJSON: JSON.stringify({
-                    query: { language: "kuery", query },
-                    filter: [],
-                    indexRefName: "kibanaSavedObjectMeta.searchSourceJSON.index"
-                })
-            }
+                searchSourceJSON: buildSearchSource(query, INDEX_REF_NAME),
+            },
         },
-        references: [{ name: "kibanaSavedObjectMeta.searchSourceJSON.index", type: "index-pattern", id: dataViewId }]
+        references: [buildDataViewReference(dataViewId)],
     };
-    const existing = await getSavedObjectByExactTitle("search", title);
-    if (existing) {
-        await kibanaRequest(`/api/saved_objects/search/${existing.id}`, { method: "PUT", body });
-        return existing.id;
-    }
-    const response = await kibanaRequest("/api/saved_objects/search", { method: "POST", body });
-    return response.id;
+    const result = await upsertSavedObject("search", title, body);
+    return result.id;
 }
-function buildVisualizationState(title, visualization, breakdownField) {
+export function buildVisualizationState(title, visualization, breakdownField) {
     if (visualization === "metric") {
         return {
             title,
@@ -126,22 +113,13 @@ async function upsertVisualizationObject(title, query, visualization, dataViewId
             uiStateJSON: "{}",
             version: 1,
             kibanaSavedObjectMeta: {
-                searchSourceJSON: JSON.stringify({
-                    query: { language: "kuery", query },
-                    filter: [],
-                    indexRefName: "kibanaSavedObjectMeta.searchSourceJSON.index"
-                })
-            }
+                searchSourceJSON: buildSearchSource(query, INDEX_REF_NAME),
+            },
         },
-        references: [{ name: "kibanaSavedObjectMeta.searchSourceJSON.index", type: "index-pattern", id: dataViewId }]
+        references: [buildDataViewReference(dataViewId)],
     };
-    const existing = await getSavedObjectByExactTitle("visualization", title);
-    if (existing) {
-        await kibanaRequest(`/api/saved_objects/visualization/${existing.id}`, { method: "PUT", body });
-        return existing.id;
-    }
-    const response = await kibanaRequest("/api/saved_objects/visualization", { method: "POST", body });
-    return response.id;
+    const result = await upsertSavedObject("visualization", title, body);
+    return result.id;
 }
 async function buildDashboardContent(finding, plan) {
     const references = [];
@@ -154,7 +132,7 @@ async function buildDashboardContent(finding, plan) {
         const panelRefName = `panel_${i}`;
         const objectTitle = `[AI:${plan.stableKey}] ${panel.title}`;
         const id = panel.visualization === "table"
-            ? await upsertSearchObject(objectTitle, panel.query, panel.columns ?? ["@timestamp", "Body"], dataViewId)
+            ? await upsertSearchObject(objectTitle, panel.query, panel.columns ?? ["@timestamp", "message"], dataViewId)
             : await upsertVisualizationObject(objectTitle, panel.query, panel.visualization, dataViewId, panel.breakdownField);
         const type = panel.visualization === "table" ? "search" : "visualization";
         references.push({ name: panelRefName, type, id });
@@ -189,11 +167,8 @@ async function buildDashboardContent(finding, plan) {
             version: 1,
             timeRestore: false,
             kibanaSavedObjectMeta: {
-                searchSourceJSON: JSON.stringify({
-                    query: { language: "kuery", query: "" },
-                    filter: []
-                })
-            }
+                searchSourceJSON: buildSearchSource(""),
+            },
         },
         references
     };
@@ -215,24 +190,9 @@ export async function publishDashboardDraft(finding, plan) {
         return;
     }
     const content = await buildDashboardContent(finding, plan);
-    const byTitle = await getSavedObjectByExactTitle("dashboard", plan.dashboardTitle);
-    let dashboardId;
-    if (byTitle) {
-        await kibanaRequest(`/api/saved_objects/dashboard/${byTitle.id}`, {
-            method: "PUT",
-            body: content
-        });
-        dashboardId = byTitle.id;
-        console.log(`Dashboard updated: ${plan.dashboardTitle}`);
-    }
-    else {
-        const created = await kibanaRequest("/api/saved_objects/dashboard", {
-            method: "POST",
-            body: content
-        });
-        dashboardId = created.id;
-        console.log(`Dashboard created: ${plan.dashboardTitle}`);
-    }
+    const result = await upsertSavedObject("dashboard", plan.dashboardTitle, content);
+    const dashboardId = result.id;
+    console.log(`Dashboard ${result.created ? "created" : "updated"}: ${plan.dashboardTitle}`);
     registry[registryKey] = {
         dashboardId,
         title: plan.dashboardTitle,
