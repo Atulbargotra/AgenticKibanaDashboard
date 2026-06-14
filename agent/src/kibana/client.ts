@@ -20,8 +20,16 @@ export async function kibanaRequest<T>(path: string, init: { method: KibanaMetho
   });
 
   if (!response.ok) {
-    throw new Error(`Kibana API failed: ${response.status} ${await response.text()}`);
+    const body = await response.text().catch(() => "<unreadable body>");
+    throw new Error(`Kibana API failed: ${init.method} ${path} → ${response.status} ${body}`);
   }
 
-  return (await response.json()) as T;
+  const text = await response.text();
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error(
+      `Kibana API returned non-JSON for ${init.method} ${path} (${response.status}): ${text.slice(0, 200)}`,
+    );
+  }
 }

@@ -15,32 +15,43 @@ async function runOnce(): Promise<void> {
   }
 
   for (const finding of findings) {
-    const now = Date.now();
-    const last = findingLastProcessedAt.get(finding.id);
-    const cooldownMs = env.FINDING_COOLDOWN_SECONDS * 1000;
-    if (last !== undefined && now - last < cooldownMs) {
-      const remaining = Math.ceil((cooldownMs - (now - last)) / 1000);
-      console.log(`Skipping ${finding.id}; cooldown active (${remaining}s remaining).`);
-      continue;
-    }
+    try {
+      const now = Date.now();
+      const last = findingLastProcessedAt.get(finding.id);
+      const cooldownMs = env.FINDING_COOLDOWN_SECONDS * 1000;
+      if (last !== undefined && now - last < cooldownMs) {
+        const remaining = Math.ceil((cooldownMs - (now - last)) / 1000);
+        console.log(`Skipping ${finding.id}; cooldown active (${remaining}s remaining).`);
+        continue;
+      }
 
-    console.log(`Detected: ${finding.title}`);
-    const plan = await planDashboard(finding);
-    if (!plan.shouldCreate) {
-      console.log(`Planner skipped dashboard: ${plan.reason}`);
+      console.log(`Detected: ${finding.title}`);
+      const plan = await planDashboard(finding);
+      if (!plan.shouldCreate) {
+        console.log(`Planner skipped dashboard: ${plan.reason}`);
+        findingLastProcessedAt.set(finding.id, now);
+        continue;
+      }
+      await publishDashboardDraft(finding, plan);
       findingLastProcessedAt.set(finding.id, now);
-      continue;
+    } catch (error) {
+      console.error(
+        `[cycle] failed to process finding ${finding.id}; continuing with remaining findings.`,
+        error instanceof Error ? error.message : error,
+      );
     }
-    await publishDashboardDraft(finding, plan);
-    findingLastProcessedAt.set(finding.id, now);
   }
 }
 
 async function main(): Promise<void> {
   console.log(`Agent started. dryRun=${env.AGENT_DRY_RUN} interval=${env.DETECTION_INTERVAL_SECONDS}s`);
-  await runOnce();
+  try {
+    await runOnce();
+  } catch (error) {
+    console.error("[cycle] initial detection cycle failed; will retry on next interval.", error);
+  }
   setInterval(() => {
-    runOnce().catch((error) => console.error("Agent cycle failed", error));
+    runOnce().catch((error) => console.error("[cycle] agent cycle failed", error));
   }, env.DETECTION_INTERVAL_SECONDS * 1000);
 }
 

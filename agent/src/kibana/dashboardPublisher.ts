@@ -20,13 +20,24 @@ export function readRegistry(): Registry {
   }
   try {
     return JSON.parse(readFileSync(registryPath, "utf8")) as Registry;
-  } catch {
+  } catch (error) {
+    console.error(
+      `[registry] failed to parse ${registryPath}; treating as empty. This may cause duplicate dashboards.`,
+      error instanceof Error ? error.message : error,
+    );
     return {};
   }
 }
 
 export function writeRegistry(registry: Registry): void {
-  writeFileSync(registryPath, JSON.stringify(registry, null, 2));
+  try {
+    writeFileSync(registryPath, JSON.stringify(registry, null, 2));
+  } catch (error) {
+    console.error(
+      `[registry] failed to write ${registryPath}; dashboard was created but deduplication state is lost.`,
+      error instanceof Error ? error.message : error,
+    );
+  }
 }
 
 export async function dashboardExists(title: string): Promise<boolean> {
