@@ -18,7 +18,7 @@ type Registry = Record<string, { dashboardId: string; title: string; updatedAt: 
 
 type KibanaPanelReference = { name: string; type: string; id: string };
 
-function readRegistry(): Registry {
+export function readRegistry(): Registry {
   if (!existsSync(registryPath)) {
     return {};
   }
@@ -29,7 +29,7 @@ function readRegistry(): Registry {
   }
 }
 
-function writeRegistry(registry: Registry): void {
+export function writeRegistry(registry: Registry): void {
   writeFileSync(registryPath, JSON.stringify(registry, null, 2));
 }
 
@@ -76,7 +76,7 @@ async function upsertSearchObject(
   return result.id;
 }
 
-function buildVisualizationState(
+export function buildVisualizationState(
   title: string,
   visualization: "metric" | "timeseries" | "bar",
   breakdownField?: string

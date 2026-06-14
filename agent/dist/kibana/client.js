@@ -1,6 +1,6 @@
 import { env } from "../config/env.js";
 import { fetchJson } from "../utils/httpClient.js";
-function spacePath(path) {
+export function spacePath(path) {
     if (env.KIBANA_SPACE === "default") {
         return path;
     }

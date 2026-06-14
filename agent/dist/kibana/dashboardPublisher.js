@@ -5,7 +5,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 const registryPath = resolve(process.cwd(), ".dashboard-registry.json");
 const INDEX_REF_NAME = "kibanaSavedObjectMeta.searchSourceJSON.index";
-function readRegistry() {
+export function readRegistry() {
     if (!existsSync(registryPath)) {
         return {};
     }
@@ -16,7 +16,7 @@ function readRegistry() {
         return {};
     }
 }
-function writeRegistry(registry) {
+export function writeRegistry(registry) {
     writeFileSync(registryPath, JSON.stringify(registry, null, 2));
 }
 export async function dashboardExists(title) {
@@ -53,7 +53,7 @@ async function upsertSearchObject(title, query, columns, dataViewId) {
     const result = await upsertSavedObject("search", title, body);
     return result.id;
 }
-function buildVisualizationState(title, visualization, breakdownField) {
+export function buildVisualizationState(title, visualization, breakdownField) {
     if (visualization === "metric") {
         return {
             title,

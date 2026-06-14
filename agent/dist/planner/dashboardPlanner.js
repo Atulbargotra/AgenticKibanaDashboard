@@ -33,7 +33,7 @@ const dashboardPlanSchema = z.object({
         reviewRequired: z.boolean()
     })
 });
-function extractJson(text) {
+export function extractJson(text) {
     const trimmed = text.trim();
     if (trimmed.startsWith("{")) {
         return JSON.parse(trimmed);
@@ -49,7 +49,7 @@ function extractJson(text) {
     }
     throw new Error("Planner response did not contain JSON");
 }
-function summarizePlannerFailure(error) {
+export function summarizePlannerFailure(error) {
     if (error instanceof z.ZodError) {
         return error.issues.map((issue) => `${issue.path.join(".") || "plan"}: ${issue.message}`).join("; ");
     }
@@ -58,7 +58,7 @@ function summarizePlannerFailure(error) {
     }
     return String(error);
 }
-function conciseReason(reason) {
+export function conciseReason(reason) {
     const normalized = reason.replace(/\s+/g, " ").trim();
     if (normalized.includes("429")) {
         return "AI planner was rate limited by the upstream model provider";
@@ -230,7 +230,7 @@ Field names available in Elasticsearch (ECS mapping):
         return fallbackOrSkip(finding, summarizePlannerFailure(error));
     }
 }
-function fallbackOrSkip(finding, reason) {
+export function fallbackOrSkip(finding, reason) {
     if (!env.ALLOW_DETERMINISTIC_FALLBACK) {
         return {
             shouldCreate: false,

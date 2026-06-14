@@ -1,10 +1,10 @@
 import { env } from "../config/env.js";
 import { elasticsearchSearch } from "./elasticsearch.js";
 import { fingerprint, sampleEvents, spikeSeverity } from "../utils/findings.js";
-function extractBody(hit) {
+export function extractBody(hit) {
     return hit._source?.body ?? hit._source?.Body ?? hit._source?.message ?? "";
 }
-function parseLogEvent(message, source, timestamp) {
+export function parseLogEvent(message, source, timestamp) {
     const exceptionClass = message.match(/exception\.class=([A-Za-z0-9_.$]+)/)?.[1] ??
         message.match(/\b([A-Za-z0-9_$.]*(?:Exception|Error))\b/)?.[1];
     const serviceName = message.match(/\[([A-Za-z0-9_.-]+-service)\]/)?.[1] ?? env.SERVICE_NAME;

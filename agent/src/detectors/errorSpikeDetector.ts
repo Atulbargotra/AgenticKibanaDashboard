@@ -28,11 +28,11 @@ type ParsedLogEvent = {
   source: "elasticsearch";
 };
 
-function extractBody(hit: SearchHit): string {
+export function extractBody(hit: SearchHit): string {
   return hit._source?.body ?? hit._source?.Body ?? hit._source?.message ?? "";
 }
 
-function parseLogEvent(
+export function parseLogEvent(
   message: string,
   source: ParsedLogEvent["source"],
   timestamp?: string,
