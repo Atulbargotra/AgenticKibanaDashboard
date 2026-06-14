@@ -1,4 +1,5 @@
 import { env } from "../config/env.js";
+import { fetchJson } from "../utils/httpClient.js";
 
 type KibanaMethod = "GET" | "POST" | "PUT" | "DELETE";
 
@@ -10,18 +11,9 @@ function spacePath(path: string): string {
 }
 
 export async function kibanaRequest<T>(path: string, init: { method: KibanaMethod; body?: unknown }): Promise<T> {
-  const response = await fetch(`${env.KIBANA_URL}${spacePath(path)}`, {
+  return fetchJson<T>(`${env.KIBANA_URL}${spacePath(path)}`, {
     method: init.method,
-    headers: {
-      "content-type": "application/json",
-      "kbn-xsrf": "agentic-kibana-dashboard"
-    },
-    body: init.body === undefined ? undefined : JSON.stringify(init.body)
+    headers: { "kbn-xsrf": "agentic-kibana-dashboard" },
+    body: init.body,
   });
-
-  if (!response.ok) {
-    throw new Error(`Kibana API failed: ${response.status} ${await response.text()}`);
-  }
-
-  return (await response.json()) as T;
 }
