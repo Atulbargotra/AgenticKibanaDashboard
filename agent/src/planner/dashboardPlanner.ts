@@ -46,7 +46,7 @@ type ChatCompletionResponse = {
   }>;
 };
 
-function extractJson(text: string): unknown {
+export function extractJson(text: string): unknown {
   const trimmed = text.trim();
   if (trimmed.startsWith("{")) {
     return JSON.parse(trimmed);
@@ -63,7 +63,7 @@ function extractJson(text: string): unknown {
   throw new Error("Planner response did not contain JSON");
 }
 
-function summarizePlannerFailure(error: unknown): string {
+export function summarizePlannerFailure(error: unknown): string {
   if (error instanceof z.ZodError) {
     return error.issues.map((issue) => `${issue.path.join(".") || "plan"}: ${issue.message}`).join("; ");
   }
@@ -73,7 +73,7 @@ function summarizePlannerFailure(error: unknown): string {
   return String(error);
 }
 
-function conciseReason(reason: string): string {
+export function conciseReason(reason: string): string {
   const normalized = reason.replace(/\s+/g, " ").trim();
   if (normalized.includes("429")) {
     return "AI planner was rate limited by the upstream model provider";
@@ -256,7 +256,7 @@ Field names available in Elasticsearch (ECS mapping):
   }
 }
 
-function fallbackOrSkip(finding: PatternFinding, reason: string): DashboardPlan {
+export function fallbackOrSkip(finding: PatternFinding, reason: string): DashboardPlan {
   if (!env.ALLOW_DETERMINISTIC_FALLBACK) {
     return {
       shouldCreate: false,
