@@ -33,6 +33,8 @@ const envSchema = z.object({
   DETECTION_INTERVAL_SECONDS: z.coerce.number().int().positive().default(60),
   ERROR_SPIKE_THRESHOLD: z.coerce.number().int().positive().default(5),
   FINDING_COOLDOWN_SECONDS: z.coerce.number().int().positive().default(600),
+  STARTUP_MAX_RETRIES: z.coerce.number().int().nonnegative().default(3),
+  STARTUP_RETRY_DELAY_SECONDS: z.coerce.number().int().positive().default(5),
   OPENROUTER_API_KEY: z.string().optional(),
   OPENROUTER_BASE_URL: z.string().url().default("https://openrouter.ai/api/v1"),
   OPENROUTER_MODEL: z.string().default("openrouter/free"),
