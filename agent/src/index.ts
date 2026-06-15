@@ -43,13 +43,35 @@ async function runOnce(): Promise<void> {
   }
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function startupWithRetries(): Promise<void> {
+  const maxAttempts = env.STARTUP_MAX_RETRIES + 1;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await runOnce();
+      return;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (attempt < maxAttempts) {
+        console.warn(
+          `[startup] attempt ${attempt}/${maxAttempts} failed: ${message}; retrying in ${env.STARTUP_RETRY_DELAY_SECONDS}s`,
+        );
+        await delay(env.STARTUP_RETRY_DELAY_SECONDS * 1000);
+      } else {
+        throw new Error(
+          `[startup] all ${maxAttempts} attempts failed. Last error: ${message}`,
+        );
+      }
+    }
+  }
+}
+
 async function main(): Promise<void> {
   console.log(`Agent started. dryRun=${env.AGENT_DRY_RUN} interval=${env.DETECTION_INTERVAL_SECONDS}s`);
-  try {
-    await runOnce();
-  } catch (error) {
-    console.error("[cycle] initial detection cycle failed; will retry on next interval.", error);
-  }
+  await startupWithRetries();
   setInterval(() => {
     runOnce().catch((error) => console.error("[cycle] agent cycle failed", error));
   }, env.DETECTION_INTERVAL_SECONDS * 1000);
